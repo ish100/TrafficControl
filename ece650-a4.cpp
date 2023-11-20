@@ -1,6 +1,5 @@
 #include <pthread.h>
 #include <time.h>
-
 #include <algorithm>
 #include <iostream>
 #include <map>
@@ -152,15 +151,15 @@ vector<int> Graph::CheckVertexCover(size_t VxCv) {
   for (size_t i = 0; i < edgesInPlot.size(); i += 2) {
     vec<Lit> clauses;
 
-    size_t Vert_1 = edgesInPlot[i];
-    size_t Vert_2 = edgesInPlot[i + 1];
+    size_t Vert1 = edgesInPlot[i];
+    size_t Vert2 = edgesInPlot[i + 1];
 
     for (size_t k = 0; k < VxCv; k++) {
-      Lit clause_1 = Vertices[Vert_1][k];
-      Lit clause_2 = Vertices[Vert_2][k];
+      Lit clause1 = Vertices[Vert1][k];
+      Lit clause2 = Vertices[Vert2][k];
 
-      clauses.push(clause_1);
-      clauses.push(clause_2);
+      clauses.push(clause1);
+      clauses.push(clause2);
     }
 
     solver.addClause(clauses);
@@ -284,7 +283,7 @@ void Graph::cnfSatVC() {
 // vertex pairs using regular expressions. This section is the modified version
 // of the code from Assignment 2
 vector<pair<int, int>> extractEdges(const string& edgesStr) {
-  vector<pair<int, int>> return_data;
+  vector<pair<int, int>> returnData;
   regex regex_pattern("<(\\d+),(\\d+)>|\\{(\\d+),(\\d+)\\}");
   smatch match;
 
@@ -295,7 +294,7 @@ vector<pair<int, int>> extractEdges(const string& edgesStr) {
       int vertex1 = match[1].length() ? stoi(match[1].str()) : stoi(match[3].str());
       int vertex2 = match[2].length() ? stoi(match[2].str()) : stoi(match[4].str());
       if(vertex1 > 0 && vertex2 > 0){
-        return_data.push_back(make_pair(vertex1, vertex2));
+        returnData.push_back(make_pair(vertex1, vertex2));
       }
     } catch (const invalid_argument& e) {
       std::cerr << "Error: Invalid argument in extractEdges" << e.what()
@@ -307,7 +306,7 @@ vector<pair<int, int>> extractEdges(const string& edgesStr) {
     edgesStrCopy = match.suffix().str();
   }
 
-  return return_data;
+  return returnData;
 }
 
 void Graph::printOutput(Graph& street) {
