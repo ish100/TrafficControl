@@ -280,7 +280,7 @@ void Graph::cnfSatVC() {
   }
 }
 
-// This function parses the input string representing graph edges and extracts
+// This method parses the input string representing graph edges and extracts
 // vertex pairs using regular expressions. This section is the modified version
 // of the code from Assignment 2
 vector<pair<int, int>> extractEdges(const string& edgesStr) {
@@ -348,6 +348,8 @@ void Graph::printOutput(Graph& street) {
   std::cout << std::endl;
 }
 
+// This method represents the entry point for the thread that executes 
+// CNF SAT for the Minimum Vertex Cover problem.
 void* threadCNF(void* arg) {
   Graph& street = *reinterpret_cast<Graph*>(arg);
   clockid_t cpuClockId;
@@ -361,6 +363,8 @@ void* threadCNF(void* arg) {
   cout << "the duration time for CNF is: " << duration << endl;
 }
 
+// This method represents the entry point for the thread that executes 
+// Approximation Algorithm 1 for the Minimum Vertex Cover problem.
 void* threadApproxAppVC1(void* arg) {
   auto args = static_cast<std::tuple<Graph*, vector<pair<int, int>>>*>(arg);
   Graph& street = *std::get<0>(*args);
@@ -376,6 +380,8 @@ void* threadApproxAppVC1(void* arg) {
   cout << "the duration time for Approx VC 1 is: " << duration << endl;
 }
 
+// This method represents the entry point for the thread that executes 
+// Approximation Algorithm 2 for the Minimum Vertex Cover problem.
 void* threadAppVC2(void* arg) {
   auto args = static_cast<std::tuple<Graph*, vector<pair<int, int>>>*>(arg);
   Graph& street = *std::get<0>(*args);
@@ -467,8 +473,7 @@ void* threadIO(void* arg) {
     return nullptr;
 }
 
-// This main function reads and processes input lines, invoking parseInput and
-// handling exceptions, until the end of input is reached.
+// This main method creates IO thread for processing of input and output
 int main() {
   Graph street(0);
   pthread_t threadio;
