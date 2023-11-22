@@ -9,6 +9,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <chrono>
+#include <atomic>
+
 
 #include "minisat/minisat/core/Solver.h"
 #include "minisat/minisat/core/SolverTypes.h"
@@ -53,7 +56,7 @@ class Graph {
   void initVertexCoverA1();
   void StoreEdges(const std::vector<int>& edges);
   vector<int> CheckVertexCover(size_t VxCv);
-  void printOutput(Graph& street);
+  void printOutput(Graph& street, bool timeout);
   void cnfSatVC();
   std::vector<bool> approxVC1(std::vector<std::pair<int, int>>& edgeList,
                               Graph& street);
@@ -97,6 +100,8 @@ void Graph::StoreEdges(const std::vector<int>& edges) {
   }
 }
 
+
+
 // This method is responsible for determining a vertex cover of the graph given
 // a specified size VxCv Have taken multiple online references for this section
 // of code
@@ -104,13 +109,10 @@ vector<int> Graph::CheckVertexCover(size_t VxCv) {
   Solver solver;
   vector<vector<Lit>> Vertices;
 
-  Vertices.reserve(vertices);
-
   // Set up the vertices' initial values in a 2D vector so that the vertex cover
   // can be calculated.
   for (size_t i = 0; i < vertices; i++) {
     Vertices.push_back(vector<Lit>());
-    Vertices.back().reserve(VxCv);
     for (size_t j = 0; j < VxCv; j++) {
       Vertices.back().push_back(mkLit(solver.newVar()));
     }
@@ -128,13 +130,19 @@ vector<int> Graph::CheckVertexCover(size_t VxCv) {
 
   // Cond. 2: To ensure no more than one literal is true for each vertex in the
   // vertex cover.
-  for (size_t i = 0; i < vertices; i++) {
-    for (size_t j = 0; j < VxCv - 1; j++) {
-      for (size_t k = j + 1; k < VxCv; k++) {
-        solver.addClause(~Vertices[i][j], ~Vertices[i][k]);
-      }
+vec<Lit> clauses;
+for (size_t i = 0; i < vertices; i++) {
+    clauses.clear(); // Clear the vector for reuse
+    clauses.growTo(VxCv); // Ensure enough space is reserved
+
+    for (size_t j = 0, k = 1; k < VxCv; ++j, ++k) {
+        clauses[j] = ~Vertices[i][j];
+        clauses[k] = ~Vertices[i][k];
     }
-  }
+
+    solver.addClause(clauses);
+}
+
 
   // Cond. 3: To ensure that at least one vertex in the vertex cover is true for
   // each position in the cover.
@@ -279,6 +287,7 @@ void Graph::cnfSatVC() {
   }
 }
 
+
 // This method parses the input string representing graph edges and extracts
 // vertex pairs using regular expressions. This section is the modified version
 // of the code from Assignment 2
@@ -309,9 +318,12 @@ vector<pair<int, int>> extractEdges(const string& edgesStr) {
   return returnData;
 }
 
-void Graph::printOutput(Graph& street) {
+void Graph::printOutput(Graph& street, bool timeout) {
   cout << "CNF-SAT-VC: ";
-  if (!street.vertexCoverInfo.minVertexCover.empty()) {
+  if(timeout){
+    std::cout << "timeout";
+  } else {
+    if (!street.vertexCoverInfo.minVertexCover.empty()) {
     sort(street.vertexCoverInfo.minVertexCover.begin(),
          street.vertexCoverInfo.minVertexCover.end());
     for (size_t i = 0; i < street.vertexCoverInfo.minVertexCover.size(); i++) {
@@ -320,10 +332,11 @@ void Graph::printOutput(Graph& street) {
       }
       std::cout << street.vertexCoverInfo.minVertexCover[i];
     }
-    std::cout << std::endl;
   } else {
     throw runtime_error("No valid vertex cover found.");
   }
+} 
+  std::cout << std::endl;
   std::cout << "APPROX-VC-1: ";
   int n = vertices;
   bool first = true;
@@ -433,14 +446,19 @@ int parseInput(const string& line, Graph& street) {
         street.vertexCoverInfo.VxCv = street.vertices;
         pthread_t thread0, thread1, thread2;
         pthread_create(&thread0, nullptr, threadCNF, &street);
+        sleep(5);
+        bool timeout = false;
+        int joinResult = pthread_tryjoin_np(thread0, nullptr);
+        if (joinResult != 0) {
+          timeout = true; 
+        }
         std::tuple<Graph*, std::vector<std::pair<int, int>>> args(&street,
                                                                   edgePairs);
         pthread_create(&thread1, nullptr, threadApproxAppVC1, &args);
         pthread_create(&thread2, nullptr, threadAppVC2, &args);
-        pthread_join(thread0, nullptr);
         pthread_join(thread1, nullptr);
         pthread_join(thread2, nullptr);
-        street.printOutput(street);
+        street.printOutput(street, timeout);
         return 0;
       } else {
         throw invalid_argument("Invalid edge format");
