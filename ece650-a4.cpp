@@ -130,48 +130,36 @@ vector<int> Graph::CheckVertexCover(size_t VxCv) {
 
   // Cond. 2: To ensure no more than one literal is true for each vertex in the
   // vertex cover.
-vec<Lit> clauses;
 for (size_t i = 0; i < vertices; i++) {
-    clauses.clear(); // Clear the vector for reuse
-    clauses.growTo(VxCv); // Ensure enough space is reserved
-
-    for (size_t j = 0, k = 1; k < VxCv; ++j, ++k) {
-        clauses[j] = ~Vertices[i][j];
-        clauses[k] = ~Vertices[i][k];
+    for (size_t j = 0; j < VxCv; j++) {
+        for (size_t k = j + 1; k < VxCv; k++) {
+            solver.addClause(~Vertices[i][j], ~Vertices[i][k]);
+        }
     }
-
-    solver.addClause(clauses);
 }
-
 
   // Cond. 3: To ensure that at least one vertex in the vertex cover is true for
   // each position in the cover.
-  for (size_t i = 0; i < VxCv; i++) {
-    for (size_t j = 0; j < vertices - 1; j++) {
-      for (size_t k = j + 1; k < vertices; k++) {
-        solver.addClause(~Vertices[j][i], ~Vertices[k][i]);
+ for (size_t i = 0; i < VxCv; i++) {
+      for (size_t j = 0; j < vertices - 1; j++) {
+        for (size_t k = j + 1; k < vertices; k++) {
+          solver.addClause(~Vertices[j][i], ~Vertices[k][i]);
+        }
       }
     }
-  }
+
 
   // Cond. 4: // To ensure that at least one vertex in the vertex cover is true
   // for each edge in the graph.
-  for (size_t i = 0; i < edgesInPlot.size(); i += 2) {
-    vec<Lit> clauses;
-
-    size_t Vert1 = edgesInPlot[i];
-    size_t Vert2 = edgesInPlot[i + 1];
-
-    for (size_t k = 0; k < VxCv; k++) {
-      Lit clause1 = Vertices[Vert1][k];
-      Lit clause2 = Vertices[Vert2][k];
-
-      clauses.push(clause1);
-      clauses.push(clause2);
+ for (size_t i = 0; i < edgesInPlot.size(); i += 2) {
+      vec<Lit> clauses;
+      for (size_t k = 0; k < VxCv; k++) {
+        clauses.push(Vertices[edgesInPlot[i]][k]);
+        clauses.push(Vertices[edgesInPlot[i + 1]][k]);
+      }
+      solver.addClause(clauses);
     }
 
-    solver.addClause(clauses);
-  }
 
   // This part of the code checks the satisfiability of the MiniSat solver and
   // retrieves the minimum vertex cover if a solution exists.
@@ -179,23 +167,23 @@ for (size_t i = 0; i < vertices; i++) {
   vector<int> cover;
 
   if (res) {
+    vector<bool> modelValues(VxCv, false);
     for (size_t j = 0; j < VxCv; j++) {
-      bool satisfied = false;
       for (size_t i = 0; i < vertices; i++) {
         if (solver.modelValue(Vertices[i][j]) == l_True) {
           cover.push_back(i);
-          satisfied = true;
+          modelValues[j] = true;
           break;
         }
       }
-      if (!satisfied) {
+      if (!modelValues[j]) {
         cover.push_back(-1);
       }
     }
-    return cover;
   } else {
-    return {-1};
+    cover = {-1};
   }
+  return cover;
 }
 
 std::vector<int> Graph::approxVC2(std::vector<std::pair<int, int>>& edgeList) {
@@ -226,7 +214,6 @@ std::vector<int> Graph::approxVC2(std::vector<std::pair<int, int>>& edgeList) {
 
 std::vector<bool> Graph::approxVC1(std::vector<std::pair<int, int>>& edgeList,
                                    Graph& street) {
-  int n = vertices;
   street.initVertexCoverA1();
 
   while (!edgeList.empty()) {
@@ -351,7 +338,7 @@ void Graph::printOutput(Graph& street, bool timeout) {
   }
   std::cout << std::endl;
   std::cout << "APPROX-VC-2: ";
-  for (int i = 0; i < street.vertexCoverListA2.size(); i++) {
+  for (vector<int>::size_type i = 0; i < street.vertexCoverListA2.size(); i++) {
     if (i > 0) {
       std::cout << ",";
     }
@@ -373,6 +360,7 @@ void* threadCNF(void* arg) {
   clock_gettime(cpuClockId, &endTime);
   double duration = endTime.tv_sec - startTime.tv_sec + (endTime.tv_nsec - startTime.tv_nsec) / 1e9;
   cout << "the duration time for CNF is: " << duration << endl;
+  return 0;
 }
 
 // This method represents the entry point for the thread that executes 
@@ -390,6 +378,7 @@ void* threadApproxAppVC1(void* arg) {
   clock_gettime(cpuClockId, &endTime);
   double duration = endTime.tv_sec - startTime.tv_sec + (endTime.tv_nsec - startTime.tv_nsec) / 1e9;
   cout << "the duration time for Approx VC 1 is: " << duration << endl;
+  return 0;
 }
 
 // This method represents the entry point for the thread that executes 
@@ -407,6 +396,7 @@ void* threadAppVC2(void* arg) {
   clock_gettime(cpuClockId, &endTime);
   double duration = endTime.tv_sec - startTime.tv_sec + (endTime.tv_nsec - startTime.tv_nsec) / 1e9;
   cout << "the duration time for Approx VC 2 is: " << duration << endl;
+  return 0;
 }
 // This method creates a graph, stores edges, and uses the included Minisat
 // solver to determine the minimal vertex cover by parsing the input line and
@@ -446,11 +436,16 @@ int parseInput(const string& line, Graph& street) {
         street.vertexCoverInfo.VxCv = street.vertices;
         pthread_t thread0, thread1, thread2;
         pthread_create(&thread0, nullptr, threadCNF, &street);
-        sleep(5);
         bool timeout = false;
-        int joinResult = pthread_tryjoin_np(thread0, nullptr);
-        if (joinResult != 0) {
-          timeout = true; 
+        if(street.vertices > 10){
+          int timeout_duration = 15;
+          sleep(timeout_duration);
+          int joinResult = pthread_tryjoin_np(thread0, nullptr);
+          if (joinResult != 0) {
+            timeout = true; 
+          }
+        } else {
+          pthread_join(thread0, nullptr);
         }
         std::tuple<Graph*, std::vector<std::pair<int, int>>> args(&street,
                                                                   edgePairs);
@@ -469,6 +464,7 @@ int parseInput(const string& line, Graph& street) {
   } catch (const std::exception& e) {
     std::cerr << "Error: " << e.what() << std::endl;
   }
+  return 0;
 }
 
 void* threadIO(void* arg) {
