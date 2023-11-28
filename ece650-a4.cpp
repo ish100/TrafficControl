@@ -176,22 +176,23 @@ vector<int> Graph::CheckVertexCover(size_t VxCv) {
   atLeastOneVertexEdge(solver, vertices, VxCv, Vertices);
   // This part of the code checks the satisfiability of the MiniSat solver and
   // retrieves the minimum vertex cover if a solution exists.
-  auto isSatisfiable = solver.solve();
   vector<int> cover;
+  auto isSatisfiable = solver.solve();
+  cover.clear(); 
   if (isSatisfiable) {
-    vector<bool> modelValues(VxCv, false);
-    for (size_t j = 0; j < VxCv; j++) {
-      for (size_t i = 0; i < vertices; i++) {
-        if (solver.modelValue(Vertices[i][j]) == l_True) {
-          cover.push_back(i);
-          modelValues[j] = true;
-          break;
+      vector<bool> modelValues(VxCv, false);
+      for (size_t j = 0; j < VxCv; j++) {
+        for (size_t i = 0; i < vertices; i++) {
+          if (solver.modelValue(Vertices[i][j]) == l_True) {
+            cover.push_back(i);
+            modelValues[j] = true;
+            break;
+          }
+        }
+        if (!modelValues[j]) {
+          cover.push_back(-1);
         }
       }
-      if (!modelValues[j]) {
-        cover.push_back(-1);
-      }
-    }
   } else {
     cover = {-1};
   }
@@ -320,7 +321,7 @@ vector<pair<int, int>> extractEdges(const string& edgesStr) {
 
 void Graph::printOutput(Graph& street, bool timeout) {
   cout << "CNF-SAT-VC: ";
-  if(timeout && street.vertexCoverInfo.minVertexCover[0] == -1){
+  if(timeout || street.vertexCoverInfo.minVertexCover[0] == -1){
     std::cout << "timeout";
   } else {
     if (!street.vertexCoverInfo.minVertexCover.empty()) {
@@ -487,15 +488,12 @@ void* threadIO(void* arg) {
         if (line.empty() || std::all_of(line.begin(), line.end(), ::isspace)) {
             continue;
         }
-
         // Parse and process the input line
         parseInput(line, street);
     }
-
     if (!std::cin.eof()) {
         std::cerr << "Error: Input terminated unexpectedly." << std::endl;
     }
-
     return nullptr;
 }
 
