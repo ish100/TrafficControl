@@ -58,6 +58,7 @@ class Graph {
   vector<int> CheckVertexCover(size_t VxCv);
   void printOutput(Graph& street, bool timeout);
   void cnfSatVC();
+  void atLeastOneVertexEdge(Solver& solver, size_t vertices, size_t VxCv, vector<vector<Lit>>& Vertices);
   std::vector<bool> approxVC1(std::vector<std::pair<int, int>>& edgeList,
                               Graph& street);
   std::vector<int> approxVC2(std::vector<std::pair<int, int>>& edgeList);
@@ -100,7 +101,68 @@ void Graph::StoreEdges(const std::vector<int>& edges) {
   }
 }
 
+// Set up the vertices' initial values in a 2D vector so that the vertex cover can be calculated.
+void setupVertices(Solver& solver, size_t vertices, size_t VxCv, vector<vector<Lit>>& Vertices) {
+    for (size_t i = 0; i < vertices; i++) {
+      Vertices.push_back(vector<Lit>());
+      for (size_t j = 0; j < VxCv; j++) {
+        Vertices.back().push_back(mkLit(solver.newVar()));
+      }
+    }
+}
 
+// Cond. 1: To ensure each vertex is covered at least once in the vertex cover.
+void coveredAtLeastOnce(Solver& solver, size_t vertices, size_t VxCv, vector<vector<Lit>>& Vertices){
+    for (size_t i = 0; i < VxCv; i++) {
+    vec<Lit> clauses;
+    for (size_t j = 0; j < vertices; j++) {
+      clauses.push(Vertices[j][i]);
+    }
+    solver.addClause(clauses);
+  }
+}
+
+// Cond. 2: To ensure no more than one literal is true for each vertex in the vertex cover.
+void noMoreThanOneLiteral(Solver& solver, size_t vertices, size_t VxCv, vector<vector<Lit>>& Vertices){
+    for (size_t i = 0; i < vertices; i++) {
+    vec<Lit> clauses;
+
+    // Check if the vertex is adjacent to any covered vertex in the cover.
+    for (size_t j = 0; j < VxCv; j++) {
+        clauses.push(Vertices[i][j]);
+        for (size_t k = 0; k < vertices; k++) {
+            if (k != i) {
+                clauses.push(~Vertices[k][j]);
+            }
+        }
+    }
+
+    solver.addClause(clauses);
+  }
+}
+
+// Cond. 3: To ensure that at least one vertex in the vertex cover is true for each position in the cover.
+void atLeastOneVertexPosition(Solver& solver, size_t vertices, size_t VxCv, vector<vector<Lit>>& Vertices){
+    for (size_t i = 0; i < VxCv; i++) {
+        for (size_t j = 0; j < vertices - 1; j++) {
+          for (size_t k = j + 1; k < vertices; k++) {
+            solver.addClause(~Vertices[j][i], ~Vertices[k][i]);
+          }
+        }
+      }
+}
+
+// Cond. 4: // To ensure that at least one vertex in the vertex cover is true for each edge in the graph.
+void Graph::atLeastOneVertexEdge(Solver& solver, size_t vertices, size_t VxCv, vector<vector<Lit>>& Vertices){
+  for (size_t i = 0; i < edgesInPlot.size(); i += 2) {
+        vec<Lit> clauses;
+        for (size_t k = 0; k < VxCv; k++) {
+          clauses.push(Vertices[edgesInPlot[i]][k]);
+          clauses.push(Vertices[edgesInPlot[i + 1]][k]);
+        }
+        solver.addClause(clauses);
+      }
+}
 
 // This method is responsible for determining a vertex cover of the graph given
 // a specified size VxCv Have taken multiple online references for this section
@@ -108,65 +170,15 @@ void Graph::StoreEdges(const std::vector<int>& edges) {
 vector<int> Graph::CheckVertexCover(size_t VxCv) {
   Solver solver;
   vector<vector<Lit>> Vertices;
-
-  // Set up the vertices' initial values in a 2D vector so that the vertex cover
-  // can be calculated.
-  for (size_t i = 0; i < vertices; i++) {
-    Vertices.push_back(vector<Lit>());
-    for (size_t j = 0; j < VxCv; j++) {
-      Vertices.back().push_back(mkLit(solver.newVar()));
-    }
-  }
-
-  // Cond. 1: To ensure each vertex is covered at least once in the vertex
-  // cover.
-  for (size_t i = 0; i < VxCv; i++) {
-    vec<Lit> clauses;
-    for (size_t j = 0; j < vertices; j++) {
-      clauses.push(Vertices[j][i]);
-    }
-    solver.addClause(clauses);
-  }
-
-  // Cond. 2: To ensure no more than one literal is true for each vertex in the
-  // vertex cover.
-for (size_t i = 0; i < vertices; i++) {
-    for (size_t j = 0; j < VxCv; j++) {
-        for (size_t k = j + 1; k < VxCv; k++) {
-            solver.addClause(~Vertices[i][j], ~Vertices[i][k]);
-        }
-    }
-}
-
-  // Cond. 3: To ensure that at least one vertex in the vertex cover is true for
-  // each position in the cover.
- for (size_t i = 0; i < VxCv; i++) {
-      for (size_t j = 0; j < vertices - 1; j++) {
-        for (size_t k = j + 1; k < vertices; k++) {
-          solver.addClause(~Vertices[j][i], ~Vertices[k][i]);
-        }
-      }
-    }
-
-
-  // Cond. 4: // To ensure that at least one vertex in the vertex cover is true
-  // for each edge in the graph.
- for (size_t i = 0; i < edgesInPlot.size(); i += 2) {
-      vec<Lit> clauses;
-      for (size_t k = 0; k < VxCv; k++) {
-        clauses.push(Vertices[edgesInPlot[i]][k]);
-        clauses.push(Vertices[edgesInPlot[i + 1]][k]);
-      }
-      solver.addClause(clauses);
-    }
-
-
+  setupVertices(solver, vertices, VxCv, Vertices);
+  coveredAtLeastOnce(solver, vertices, VxCv, Vertices);
+  atLeastOneVertexPosition(solver, vertices, VxCv, Vertices);
+  atLeastOneVertexEdge(solver, vertices, VxCv, Vertices);
   // This part of the code checks the satisfiability of the MiniSat solver and
   // retrieves the minimum vertex cover if a solution exists.
-  auto res = solver.solve();
+  auto isSatisfiable = solver.solve();
   vector<int> cover;
-
-  if (res) {
+  if (isSatisfiable) {
     vector<bool> modelValues(VxCv, false);
     for (size_t j = 0; j < VxCv; j++) {
       for (size_t i = 0; i < vertices; i++) {
@@ -261,16 +273,17 @@ std::vector<bool> Graph::approxVC1(std::vector<std::pair<int, int>>& edgeList,
 }
 // This method iteratively checks vertex covers of increasing sizes to determine
 // the graph's minimal vertex cover.
-void Graph::cnfSatVC() {
-  for (size_t i = 1;
-       i < vertices && vertexCoverInfo.minVertexCoverSize == vertices; i++) {
-    vertexCoverInfo.minVertexCover = CheckVertexCover(i);
-    if (vertexCoverInfo.minVertexCover[0] != -1 &&
-        vertexCoverInfo.minVertexCover.size() <
-            vertexCoverInfo.minVertexCoverSize) {
-      vertexCoverInfo.minVertexCoverSize =
-          vertexCoverInfo.minVertexCover.size();
-    }
+void Graph::cnfSatVC() {  
+  size_t i = 1;
+  while (i < vertices && vertexCoverInfo.minVertexCoverSize == vertices) {
+      vertexCoverInfo.minVertexCover = CheckVertexCover(i);
+
+      if (vertexCoverInfo.minVertexCover[0] != -1 &&
+          vertexCoverInfo.minVertexCover.size() < vertexCoverInfo.minVertexCoverSize) {
+          vertexCoverInfo.minVertexCoverSize = vertexCoverInfo.minVertexCover.size();
+      }
+
+      ++i;
   }
 }
 
@@ -307,7 +320,7 @@ vector<pair<int, int>> extractEdges(const string& edgesStr) {
 
 void Graph::printOutput(Graph& street, bool timeout) {
   cout << "CNF-SAT-VC: ";
-  if(timeout){
+  if(timeout && street.vertexCoverInfo.minVertexCover[0] == -1){
     std::cout << "timeout";
   } else {
     if (!street.vertexCoverInfo.minVertexCover.empty()) {
